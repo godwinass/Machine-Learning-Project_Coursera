@@ -1,1 +1,135 @@
-# Machine-Learning-Project_Coursera
+---
+title: "Practical Machine Learning Course Project"
+author: "Godwin Appiah Assumaning"
+date: "February 28, 2016"
+output: 
+  html_document: 
+---
+
+**Introduction**
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here.
+
+**Data**
+
+The data for this course project is given as: http://groupware.les.inf.puc-rio.br/har. The training data and the test data are downloaded here.
+
+```{r, echo=TRUE}
+setwd("C:/Users/djl/Desktop/ML Project")
+
+train <- read.csv(file = "pml-training.csv", na.strings=c("", "NA", "NULL"))
+test<- read.csv(file = "pml-testing.csv", na.strings=c("", "NA", "NULL"))
+
+```
+
+The training data has 19622 observations and 160 features, and the distribution of the five measured stances A,B,C,D,E is:
+
+```{r, echo=TRUE}
+dim(train)
+```
+
+```{r, echo=TRUE}
+table(train$classe)
+```
+
+**Preprocessing**
+*Partitioning the training set*
+
+ceating training set and validation set so validate our model.
+
+```{r, echo=TRUE}
+library(caret)
+```
+
+```{r, echo=TRUE}
+set.seed(12345)
+trainset <- createDataPartition(train$classe, p = 0.8, list = FALSE)
+Training <- train[trainset, ]
+Validation <- train[-trainset, ]
+```
+
+**Feature selection**
+
+Cleaning up the near zero variance features, columns with missing values and descriptive fields.
+
+```{r, echo=TRUE}
+# exclude near zero variance features
+nzvcol <- nearZeroVar(Training)
+Training <- Training[, -nzvcol]
+
+# exclude columns with 40% or more missing values exclude descriptive
+# columns like name 
+cntlength <- sapply(Training, function(x) {
+    sum(!(is.na(x) | x == ""))
+})
+nullcol <- names(cntlength[cntlength < 0.6 * length(Training$classe)])
+descriptcol <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", 
+    "cvtd_timestamp", "new_window", "num_window")
+excludecols <- c(descriptcol, nullcol)
+Training <- Training[, !names(Training) %in% excludecols]
+```
+
+**Model Training**
+
+We apply random forest as our model as implemented in the randomForest package.
+
+```{r, echo=TRUE}
+library(randomForest)
+
+rfModel <- randomForest(classe ~ ., data = Training, importance = TRUE, ntrees = 10)
+```
+
+**Model Validation**
+
+Testing our model performance on the training set and the cross validation set.
+
+*Training set accuracy*
+
+```{r, echo=TRUE}
+ptraining <- predict(rfModel, Training)
+print(confusionMatrix(ptraining, Training$classe))
+```
+
+The model performs better against the training set, but we need to cross validate the performance against the hold-out set and check overfitting.
+
+**Validation set accuracy (Out-of-Sample)**
+
+```{r, echo=TRUE}
+pvalidation <- predict(rfModel, Validation)
+print(confusionMatrix(pvalidation, Validation$classe))
+```
+
+The cross validation accuracy is 99.5% and the out-of-sample error is therefore 0.5% so our model performs better.
+
+**Test Set Prediction**
+
+The prediction of our algorithm for the test set is:
+
+```{r, echo=TRUE}
+ptest <- predict(rfModel, test)
+ptest
+```
+
+We then save the output to files according to instructions.
+
+```{r, echo=TRUE}
+answers <- as.vector(ptest)
+
+pml_write_files = function(x) {
+    n = length(x)
+    for (i in 1:n) {
+        filename = paste0("problem_id_", i, ".txt")
+        write.table(x[i], file = filename, quote = FALSE, row.names = FALSE, 
+            col.names = FALSE)
+    }
+}
+
+pml_write_files(answers)
+```
+
+
+
+
+
+
+
